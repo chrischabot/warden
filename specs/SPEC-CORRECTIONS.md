@@ -1,6 +1,6 @@
 # Spec corrections
 
-Deltas applied against `docs/SPEC.md` during construction. Each entry names a spec section, states the discrepancy with verifiable reality, and records the resolution the codebase ships.
+Deltas applied against `specs/SPEC.md` during construction. Each entry names a spec section, states the discrepancy with verifiable reality, and records the resolution the codebase ships.
 
 ## §1. Columnar shard count: `shards = cores`, not `shards = 16`
 
@@ -46,4 +46,4 @@ Deltas applied against `docs/SPEC.md` during construction. Each entry names a sp
 
 ---
 
-Add a new entry every time the codebase diverges from `docs/SPEC.md`. Do not silently fix; always document.
+Add a new entry every time the codebase diverges from `specs/SPEC.md`. Do not silently fix; always document.

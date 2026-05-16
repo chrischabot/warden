@@ -195,7 +195,8 @@ Authentication uses either a DSN public key (for ingest) or a bearer token (for 
 
 ```
 warden/
-├── docs/SPEC.md                  # full specification
+├── docs/                         # user + developer docs (see Documentation section)
+├── specs/SPEC.md                 # full specification
 ├── packages/                     # 29 internal packages
 │   ├── topology/  metrics/  proto/
 │   ├── columnar/  hll-tdigest/  queue-core/
@@ -215,6 +216,26 @@ warden/
 │   └── javascript/  rust/  go/  python/  swift/
 └── e2e/                          # end-to-end + load tests
 ```
+
+---
+
+## Documentation
+
+Full user and developer documentation lives in [`docs/`](./docs/README.md). Top-level sections:
+
+- **[Getting started](./docs/getting-started.md)** — install Bun, run the relay, send your first event.
+- **[Platform overview](./docs/platform-overview.md)** — what Warden captures and how it's different.
+- **[Concepts](./docs/concepts.md)** — DSN, envelope, event, scope, hub, issue, group, fingerprint, release.
+- **[Architecture](./docs/architecture.md)** — process model, data flow, multi-core scaling.
+- **[Operations](./docs/operations/)** — [installation](./docs/operations/installation.md), [deployment](./docs/operations/deployment.md), [scaling and topology](./docs/operations/scaling-and-topology.md), [storage and data](./docs/operations/storage-and-data.md), [observability](./docs/operations/observability.md).
+- **[HTTP API reference](./docs/api/README.md)** — [envelope ingest](./docs/api/envelope.md), [OTLP](./docs/api/otlp.md), [rate limits](./docs/api/rate-limits.md), [outcomes](./docs/api/outcomes.md).
+- **[SDKs](./docs/sdks/README.md)** — full reference per language: [JavaScript](./docs/sdks/javascript.md), [Python](./docs/sdks/python.md), [Rust](./docs/sdks/rust.md), [Go](./docs/sdks/go.md), [Swift](./docs/sdks/swift.md).
+- **[Reporting guide](./docs/reporting-guide.md)** — how to instrument an application well.
+- **[Web dashboard](./docs/web-dashboard.md)** — full guide to the UI, every page, settings, shortcuts.
+- **[Internals](./docs/internals/README.md)** — [columnar store](./docs/internals/columnar-store.md), [queue](./docs/internals/queue.md), [grouping](./docs/internals/grouping.md), [sampling](./docs/internals/sampling.md), [PII scrubbing](./docs/internals/pii-scrubbing.md), [rate limiting](./docs/internals/rate-limiting.md), [auth](./docs/internals/auth.md), [package reference](./docs/internals/packages.md).
+- **[Contributing](./docs/contributing.md)** — dev workflow, conventions, CI matrix.
+
+The source-of-truth specification lives in [`specs/SPEC.md`](./specs/SPEC.md) with corrections in [`specs/SPEC-CORRECTIONS.md`](./specs/SPEC-CORRECTIONS.md).
 
 ---
 

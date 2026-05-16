@@ -1,6 +1,6 @@
 # Construction plan
 
-Living document. The full source spec lives at `docs/SPEC.md`; this file tracks **what we are doing about it, in what order, and with what running decisions**.
+Living document. The full source spec lives at `specs/SPEC.md`; this file tracks **what we are doing about it, in what order, and with what running decisions**.
 
 ## Status snapshot
 
@@ -57,7 +57,7 @@ Recorded verbatim as they arrive; latest at the top.
 → Resolves the spec §2.5 vs §12.2 inconsistency in favour of §12.2. Implemented in `packages/topology`. Codified in SPEC-CORRECTIONS.md §1.
 
 ### 2026-05-16 (turn 1) — the source spec
-File uploaded: the "Maestro Super-Prompt — Sentry Replica, Production Build (Iteration 4)" by Chris, Founding Head of DevRel, iGent AI. Now lives at `docs/SPEC.md`. End-to-end ownership, Bun runtime, custom-built columnar/queue/relay, 10k events/s sustained, no third-party storage primitives beyond `bun:sqlite` and leaf libraries (gimli, pdb, libzstd, lz4).
+File uploaded: the "Maestro Super-Prompt — Sentry Replica, Production Build (Iteration 4)" by Chris, Founding Head of DevRel, iGent AI. Now lives at `specs/SPEC.md`. End-to-end ownership, Bun runtime, custom-built columnar/queue/relay, 10k events/s sustained, no third-party storage primitives beyond `bun:sqlite` and leaf libraries (gimli, pdb, libzstd, lz4).
 
 ## 3. Ring status
 
@@ -118,7 +118,7 @@ Per spec §15 the order is mandatory: Ring 0 → Ring 1 → Ring 2 (queue → re
 
 ```
 sentry-replica/
-├── docs/SPEC.md                  # source-of-truth specification (~30k words)
+├── specs/SPEC.md                  # source-of-truth specification (~30k words)
 ├── SPEC-CORRECTIONS.md           # five spec corrections recorded during construction
 ├── plan.md                       # this file
 ├── infra/ci/typescript-migration.md
@@ -180,7 +180,7 @@ Cross-cutting decisions that affect more than one ring.
 
 ## 8. SPEC corrections summary
 
-Every divergence from `docs/SPEC.md` is recorded in `SPEC-CORRECTIONS.md`. Five corrections to date:
+Every divergence from `specs/SPEC.md` is recorded in `SPEC-CORRECTIONS.md`. Five corrections to date:
 
 1. Shard count = logical cores (per §12.2), not 16 (per §2.5).
 2. Effect v4 beta ships from `effect`, not `Effect-TS/effect-smol`.
