@@ -99,7 +99,9 @@ function fingerprintFromException(exc: ExceptionValue): readonly string[] | unde
 function finalize(strategy: GroupingStrategy, fingerprint: readonly string[]): GroupingResult {
   const joined = fingerprint.join('|');
   const raw = (Bun.hash as (data: string) => bigint)(joined);
-  const unsigned = BigInt.asUintN(64, raw);
-  const groupHash = unsigned.toString(16).padStart(16, '0');
+  const u = BigInt.asUintN(64, raw);
+  const hi = Number(u >> 32n) >>> 0;
+  const lo = Number(u & 0xffffffffn) >>> 0;
+  const groupHash = hi.toString(16).padStart(8, '0') + lo.toString(16).padStart(8, '0');
   return Object.freeze({ groupHash, fingerprint: Object.freeze([...fingerprint]), strategy });
 }

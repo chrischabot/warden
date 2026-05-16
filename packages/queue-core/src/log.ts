@@ -46,8 +46,8 @@ import {
 
 const DEFAULT_MAX_SEGMENT_BYTES = 256 * 1024 * 1024;
 const DEFAULT_MAX_SEGMENT_AGE_MS = 60 * 60 * 1000;
-const DEFAULT_FSYNC_INTERVAL_MS = 5;
-const DEFAULT_FSYNC_BYTES = 256 * 1024;
+const DEFAULT_FSYNC_INTERVAL_MS = 10;
+const DEFAULT_FSYNC_BYTES = 1024 * 1024;
 const SEGMENT_NAME_RE = /^segment-(\d{1,20})\.log$/;
 const OFFSET_PAD = 20;
 
@@ -268,18 +268,29 @@ export class SegmentedLog {
       this.pendingBytes = 0;
 
       let totalLen = 0;
-      for (const w of batch) totalLen += w.bytes.byteLength;
-      const concat = new Uint8Array(totalLen);
-      let off = 0;
-      for (const w of batch) {
-        concat.set(w.bytes, off);
-        off += w.bytes.byteLength;
+      const buffers: Buffer[] = new Array(batch.length);
+      for (let i = 0; i < batch.length; i++) {
+        const b = (batch[i] as PendingWrite).bytes;
+        const buf = Buffer.from(b.buffer, b.byteOffset, b.byteLength);
+        buffers[i] = buf;
+        totalLen += b.byteLength;
       }
 
       try {
-        await this.active.fileHandle.write(concat, 0, concat.byteLength, null);
-        await this.active.fileHandle.sync();
-        this.active.bytesWritten += concat.byteLength;
+        try {
+          await this.active.fileHandle.writev(buffers, null);
+        } catch (writevErr) {
+          if (!(writevErr instanceof TypeError)) throw writevErr;
+          const concat = new Uint8Array(totalLen);
+          let off = 0;
+          for (const w of batch) {
+            concat.set(w.bytes, off);
+            off += w.bytes.byteLength;
+          }
+          await this.active.fileHandle.write(concat, 0, concat.byteLength, null);
+        }
+        await this.active.fileHandle.datasync();
+        this.active.bytesWritten += totalLen;
         this.active.recordCount += BigInt(batch.length);
         for (const w of batch) w.resolve(w.offset);
       } catch (e) {

@@ -13,8 +13,14 @@
  *     matches, the default rate applies.
  *
  * Decision is deterministic on `trace_id` (spec §3.1):
- *   normalized = hash64(trace_id) / 2^64 ∈ [0, 1)
+ *   normalized = crc32(trace_id) / 2^32 ∈ [0, 1)
  *   decision = normalized < rate ? keep : drop
+ *
+ * CRC32 (PCLMULQDQ-accelerated in Bun) is hardware-fast and returns
+ * a Number, avoiding the BigInt allocation roundtrip the previous
+ * implementation paid on every item. 32 bits of entropy is far
+ * more than enough resolution for sample-rate comparisons at any
+ * practical rate.
  *
  * Without a `trace_id`, the sampler still wants a stable decision
  * for the same event, so it falls back to hashing the concatenated
@@ -25,7 +31,7 @@
 
 import type { EventLike, MatchValue, RuleConditions, SampleDecision, SamplingRule } from './types';
 
-const HASH_DIVISOR = 2 ** 64;
+const HASH_DIVISOR = 0x1_0000_0000; // 2^32
 
 export interface SamplerOptions {
   /** Sample rate when no rule matches. Default 1.0 (keep everything). */
@@ -35,6 +41,8 @@ export interface SamplerOptions {
 export class Sampler {
   readonly rules: readonly SamplingRule[];
   readonly defaultSampleRate: number;
+  /** True when there are no rules and the default rate is 1.0 — the trivial-keep case. */
+  readonly trivialKeep: boolean;
 
   constructor(rules: readonly SamplingRule[], options: SamplerOptions = {}) {
     for (const r of rules) {
@@ -50,10 +58,12 @@ export class Sampler {
     }
     this.rules = rules;
     this.defaultSampleRate = dflt;
+    this.trivialKeep = rules.length === 0 && dflt >= 1;
   }
 
   /** Decide whether to keep this event. */
   decide(event: EventLike): SampleDecision {
+    if (this.trivialKeep) return KEEP_DEFAULT_1;
     const match = this.firstMatch(event);
     const rate = match ? match.sampleRate : this.defaultSampleRate;
     const matchedRuleId = match ? match.id : undefined;
@@ -74,6 +84,8 @@ export class Sampler {
     return undefined;
   }
 }
+
+const KEEP_DEFAULT_1: SampleDecision = Object.freeze({ decision: 'keep', rate: 1 });
 
 function finalize(
   decision: 'keep' | 'drop',
@@ -114,6 +126,10 @@ function matchesOne(
 /**
  * Uniform [0, 1) value for the event. Deterministic on `trace_id`
  * when present; otherwise on the concatenated field signature.
+ *
+ * Implementation: `Bun.hash.crc32` returns a 32-bit unsigned
+ * Number (PCLMULQDQ-accelerated in Bun). No BigInt allocation in
+ * the hot path; no string conversion.
  */
 function uniformFor(event: EventLike): number {
   let key: string;
@@ -129,7 +145,6 @@ function uniformFor(event: EventLike): number {
       event.item_type ?? '',
     ].join('\u0000');
   }
-  const raw = (Bun.hash as (data: string) => bigint)(key);
-  const unsigned = BigInt.asUintN(64, raw);
-  return Number(unsigned) / HASH_DIVISOR;
+  const h = Bun.hash.crc32(key) >>> 0;
+  return h / HASH_DIVISOR;
 }
