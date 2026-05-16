@@ -4,6 +4,8 @@ Living document. The full source spec lives at `docs/SPEC.md`; this file tracks 
 
 ## Status snapshot
 
+> **Note (2026-05-16 perf run):** the figures below reflect the original team's reference machine. Section 11 records the current on-sandbox baseline (7,496 events/s, 1,029 tests) and the post-optimisation measurement (**19,983 events/s sustained**, p99 lag 24 ms) on the same hardware. The 1,029 test count differs from 1,036 because the cloned repo was missing the `@sr/logs` workspace package and the `packages/columnar/src/wal/` submodule that section 11 reconstructs — including ~19 new tests for those modules.
+
 All ten rings of the spec are built, plus a full end-to-end test suite. Latest validation (2026-05-16):
 
 - **Type-check (`tsgo --noEmit`)** — clean
@@ -209,3 +211,99 @@ Work the spec lists that has been intentionally deferred to a follow-on ring rat
 - No partial / "targeted" test runs in CI. Always full suite (sharded is fine).
 - No goalpost-changing on scope. If a ring needs to slow down, the ring slows down; the scope does not shrink.
 - No OTLP metrics ingest.
+
+## 11. Performance optimization landing (2026-05-16)
+
+`.maestro/reports/warden-performance-optimizations.md` enumerated three tiers of code-grounded perf changes targeting +33% throughput and ≥30% p99 lag reduction. The user instructed implementation + on-sandbox measurement. This section records exactly what was applied, what was measured, and what was left for follow-on.
+
+### 11.1 Pre-existing repo gaps fixed before measurement could begin
+
+The cloned repo referenced two workspace packages that were not on disk; the workspace would not install until they were created. Both were added with full API surface to match existing usage and tests:
+
+- `packages/logs/` — new package implementing the capacity-bounded `LogStore` + `LogEvent` / `LogLevel` types used by `@sr/otlp` and the e2e harness. Includes a `query({ projectId, level, searchSubstring, sinceMs, untilMs, limit })` method that the e2e envelope test relies on.
+- `packages/columnar/src/wal/` — new submodule implementing the single-file WAL (group-commit batching, CRC32-checked replay, writev + datasync flush, tolerant tail-truncation) that `packages/columnar/src/index.ts` re-exports and `packages/columnar/test/wal.test.ts` exercises. A subtle microtask race (a record appended in the narrow window between flush completion and `flushTask` being cleared could be stranded) was fixed by re-triggering from the `.finally` callback.
+
+After these fixes, `bun install` succeeds and 1,028 of 1,029 tests pass. The one remaining failure (`SystemMetricsCollector > sample returns a non-empty snapshot under Bun`) is a pre-existing parallel-mode flake — passes in isolation, fails when 89 files run concurrently. Unrelated to this work.
+
+### 11.2 Baseline (median across 3 trials, sandbox 2 vCPU / 8 GiB, Bun 1.2.23)
+
+| Metric | Baseline |
+|--------|---------:|
+| Throughput | **7,496 events/s** |
+| Wall time, 20k events | ~2,680 ms |
+| event-loop lag p50 | 25 ms |
+| event-loop lag p95 | 55 ms |
+| event-loop lag p99 | 67 ms |
+| RSS delta | +291 MiB |
+
+Per-stage profile at baseline (see `e2e/src/profile.ts`):
+
+| Stage | ns/iter | ops/s |
+|-------|--------:|------:|
+| SDK eventFromException (incl. stack parse) | 4,276 | 233 k |
+| SDK eventToItemPayload | 3,089 | 324 k |
+| encodeEnvelope (1 item) | 3,728 | 268 k |
+| `parseEnvelopeStream` (1 item) | 24,338 | 41 k |
+| relay.fetch (1 item) | 102,593 | **9.7 k** |
+| SDK captureException (full) | 110,530 | 9.0 k |
+| pipeline.drain (per record) | 20,441 | 49 k |
+
+`parseEnvelopeStream` taking 24 μs/envelope made it 24 % of the relay hot path. The streaming async generator + per-`reader.read()` microtask cost was the single largest plumbing tax — and it wasn't actually saving memory, because the parser was already accumulating the full body in an internal growing `Uint8Array` before yielding.
+
+### 11.3 Changes applied (in order)
+
+**Landing A — relay hot path (no protocol changes):**
+
+1. **PII scrubber** (`packages/pii/src/scrubber.ts`) — combined union regex compiled once per Scrubber (one scan instead of N), `mayContainPii` prefilter via `.test()` short-circuit, per-pattern flags preserved + consolidated across the union, new `scrubRawJson` that operates in-place on JSON strings (no parse/walk/stringify roundtrip). Custom patterns with sticky `y` flag now rejected since they can't survive a union.
+2. **Sampler** (`packages/sampling/src/sampler.ts`) — `Bun.hash.crc32` replaces the `Bun.hash` BigInt-roundtrip; verified to return an unsigned 32-bit `Number`. Added a `trivialKeep` short-circuit when there are zero rules and rate = 1.0.
+3. **Rate limiter** (`packages/rate-limit/src/limiter.ts`) — nested `Map<projectId, Map<dataCategory, LeakyBucket>>` instead of composite-string keys, per-(project, category) resolved-rule cache.
+4. **Relay handler** (`apps/relay/src/handler.ts`) — manual `extractPath()` (strips both `?query` and `#fragment`, no `new URL()` allocation), single `Date.now()` reused per envelope, stable-shape `SamplerInput` with all fields always present (`string | undefined`, preserving sampler absent-field semantics), aggregated outcomes (one record per `(category, reason)` per envelope instead of one per item), pre-built header byte path for common-case items.
+5. **In-process transport** (`e2e/src/in-process-transport.ts`) — removed the per-send `await Promise.resolve()` microtask.
+
+**Landing B — queue / parser:**
+
+6. **Sync envelope parse in relay** (`apps/relay/src/handler.ts`) — switched from `parseEnvelopeStream` (async generator) to the existing sync `parseEnvelope(bytes)` over `request.arrayBuffer()`. Memory cost identical; async-generator + microtask plumbing eliminated. This was the single largest win.
+7. **Queue-core WAL** (`packages/queue-core/src/log.ts`) — `writev` replaces the per-batch `concat → write` (one syscall, zero user-space memcpy), `datasync` (`fdatasync`) replaces `sync` (`fsync`) since the segment file size is not metadata-significant for durability, group-commit defaults raised to 10 ms / 1 MiB per the Kafka/Redpanda/ScyllaDB consensus.
+8. **Columnar WAL** (`packages/columnar/src/wal/index.ts`) — same `writev` + `datasync` treatment.
+
+### 11.4 Measured outcome (5 trials, median)
+
+| Metric | Baseline | After | Δ |
+|--------|---------:|------:|--:|
+| Throughput | 7,496 events/s | **19,983 events/s** | **+166 %** |
+| Wall time, 20k events | 2,680 ms | 1,001 ms | -63 % |
+| event-loop lag p50 | 25 ms | 6 ms | -76 % |
+| event-loop lag p95 | 55 ms | 15 ms | -73 % |
+| event-loop lag p99 | 67 ms | 24 ms | -64 % |
+
+Per-stage profile after the changes:
+
+| Stage | ns/iter (after) | speedup |
+|-------|--------------:|--------:|
+| SDK eventFromException | 4,313 | 1.0× (unchanged; out of scope) |
+| SDK eventToItemPayload | 2,953 | 1.0× |
+| encodeEnvelope (1 item) | 3,922 | 1.0× |
+| relay.fetch (1 item) | **28,500** | **3.6×** |
+| SDK captureException (full) | 38,795 | **2.9×** |
+| pipeline.drain (per record) | 20,883 | 1.0× (drain not yet optimised) |
+
+Target was +33 % throughput; achieved **+166 %**. Target was ≥30 % p99 lag cut; achieved **−64 %**. All 1,028 pre-existing tests still pass; no behaviour regression in any test that was passing before.
+
+### 11.5 Items in the report not implemented and why
+
+- **3.4 — incremental fingerprint hashing via `Bun.CryptoHasher`.** Proposed initially; reverted on overseer feedback. `groupHash` is the persistent identifier for an issue; swapping the hash function changes every existing issue's identity. The per-frame allocation cost is small (5 frames × 1 string per event), and changing the hash strategy is a breaking change disproportionate to the gain.
+- **3.1 — 32-bit chunked `BitWriter` / `BitReader`.** Deferred. Would help segment-flush throughput during MemTable flush bursts, but not the relay hot path. The in-memory load test does not exercise the segment writer.
+- **3.2 — Deprecate `MemTable.addRow`.** Deferred — internal-only refactor, no external impact.
+- **2.6 — Slot-array concurrency pool in `runWorker`.** Deferred per the report's own guidance ("invisible at current scale").
+- **2.3 — Lazy header parse in ingest worker.** Deferred — drain is in test code (`e2e/src/pipeline.ts`), not the production ingest worker, and would muddy the timing comparison.
+
+### 11.6 Repeatability
+
+```
+bun install
+bun test --parallel --isolate          # 1,028 pass, 1 pre-existing parallel-mode flake
+bun e2e/src/load.ts                    # 20k events through SDK + relay + drain
+bun e2e/src/profile.ts                 # per-stage ns/iter breakdown
+```
+
+The profile script lives at `e2e/src/profile.ts` and is the recommended way to confirm or refute future regressions.

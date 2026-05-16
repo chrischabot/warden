@@ -4,8 +4,10 @@
  * Configure with a list of rules and a default. Each rule matches
  * a (project, category) pair (either may be `*` as a wildcard).
  * The first matching rule wins; if none matches, the default rule
- * applies. Buckets are allocated lazily and held in an in-process
- * Map keyed by `${projectId}|${dataCategory}`.
+ * applies. Buckets are allocated lazily and held in a nested Map
+ * keyed by `projectId → dataCategory → LeakyBucket` so the hot
+ * `check()` path makes two cheap Map lookups instead of allocating
+ * a composite key string per call.
  *
  * Spec §3.1 specifies Redis-backed shared state for cross-process
  * coordination; this implementation provides only the in-process
@@ -36,16 +38,29 @@ export interface RateLimiterConfig {
 
 export type LimitDecision = 'accepted' | 'rate_limited';
 
+interface ResolvedRule {
+  readonly capacity: number;
+  readonly refillPerSec: number;
+}
+
 export class RateLimiter {
   private readonly rules: readonly RateLimitRule[];
-  private readonly defaultCapacity: number;
-  private readonly defaultRefillPerSec: number;
-  private readonly buckets = new Map<string, LeakyBucket>();
+  private readonly defaultRule: ResolvedRule;
+  /**
+   * Nested map: projectId → (dataCategory → bucket). Two map lookups
+   * per `check()`; no per-call key string allocation.
+   */
+  private readonly byProject = new Map<string, Map<string, LeakyBucket>>();
+  /** Per-(projectId, dataCategory) resolved-rule cache. */
+  private readonly ruleCache = new Map<string, Map<string, ResolvedRule>>();
+  private bucketCount_ = 0;
 
   constructor(config: RateLimiterConfig = {}) {
     this.rules = config.rules ? [...config.rules] : [];
-    this.defaultCapacity = config.defaultCapacity ?? 100;
-    this.defaultRefillPerSec = config.defaultRefillPerSec ?? 10;
+    this.defaultRule = Object.freeze({
+      capacity: config.defaultCapacity ?? 100,
+      refillPerSec: config.defaultRefillPerSec ?? 10,
+    });
   }
 
   /** Try to admit `tokens` items. Returns the decision. */
@@ -70,12 +85,16 @@ export class RateLimiter {
 
   /** Number of distinct buckets currently held. */
   get bucketCount(): number {
-    return this.buckets.size;
+    return this.bucketCount_;
   }
 
   private bucketFor(projectId: string, dataCategory: string, nowMs: number): LeakyBucket {
-    const key = `${projectId}|${dataCategory}`;
-    let bucket = this.buckets.get(key);
+    let inner = this.byProject.get(projectId);
+    if (!inner) {
+      inner = new Map();
+      this.byProject.set(projectId, inner);
+    }
+    let bucket = inner.get(dataCategory);
     if (!bucket) {
       const rule = this.matchRule(projectId, dataCategory);
       bucket = new LeakyBucket({
@@ -83,29 +102,32 @@ export class RateLimiter {
         refillPerSec: rule.refillPerSec,
         initialNowMs: nowMs,
       });
-      this.buckets.set(key, bucket);
+      inner.set(dataCategory, bucket);
+      this.bucketCount_++;
     }
     return bucket;
   }
 
-  private matchRule(
-    projectId: string,
-    dataCategory: string,
-  ): {
-    capacity: number;
-    refillPerSec: number;
-  } {
+  private matchRule(projectId: string, dataCategory: string): ResolvedRule {
+    let inner = this.ruleCache.get(projectId);
+    if (!inner) {
+      inner = new Map();
+      this.ruleCache.set(projectId, inner);
+    }
+    const cached = inner.get(dataCategory);
+    if (cached) return cached;
+
+    let resolved: ResolvedRule = this.defaultRule;
     for (const r of this.rules) {
       if (
         (r.projectId === '*' || r.projectId === projectId) &&
         (r.dataCategory === '*' || r.dataCategory === dataCategory)
       ) {
-        return { capacity: r.capacity, refillPerSec: r.refillPerSec };
+        resolved = { capacity: r.capacity, refillPerSec: r.refillPerSec };
+        break;
       }
     }
-    return {
-      capacity: this.defaultCapacity,
-      refillPerSec: this.defaultRefillPerSec,
-    };
+    inner.set(dataCategory, resolved);
+    return resolved;
   }
 }

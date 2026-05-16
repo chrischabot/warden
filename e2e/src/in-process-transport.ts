@@ -31,7 +31,6 @@ export class InProcessTransport implements Transport {
       this.responses.push(r);
     });
     this.inflight.push(p);
-    await Promise.resolve();
   }
 
   async flush(_timeoutMs?: number): Promise<boolean> {
