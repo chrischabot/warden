@@ -1,0 +1,14 @@
+{
+  "name": "@sr/sqlite-shard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Persistent metadata sharding per spec §8: ShardRouter (consistent hashing → fixed shard count), per-shard bun:sqlite connection wrapper with prepared-statement cache, declarative schema migration runner.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./router": "./src/router.ts",
+    "./connection": "./src/connection.ts",
+    "./migration": "./src/migration.ts"
+  }
+}

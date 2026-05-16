@@ -1,0 +1,13 @@
+{
+  "name": "@sr/metrics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared sr_* Prometheus namespace helpers for every binary in the replica.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "prom-client": "^15.1.3"
+  }
+}

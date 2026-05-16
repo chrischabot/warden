@@ -1,0 +1,1 @@
+"""Integrations: hooks that auto-capture errors from runtime / framework events."""

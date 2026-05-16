@@ -1,0 +1,12 @@
+{
+  "name": "@sr/sampling",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Server-side dynamic sampling per spec §3.1. Trace-scoped, deterministic on trace_id so all envelopes in a trace agree.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./sampler": "./src/sampler.ts"
+  }
+}

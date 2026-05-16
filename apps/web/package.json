@@ -1,0 +1,32 @@
+{
+  "name": "@sr/app-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Web UI per spec §6. React 19.2 + Tailwind v4.3 (Oxide). Routing via React Router 7. Dashboard, issues, performance, crons, uptime, releases, discover, alerts, dashboards, settings.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "e2e:ui": "bun test-e2e/journeys.ts"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.1.0"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^15.7.0",
+    "@tailwindcss/vite": "^4.3.0",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "playwright": "^1.49.0",
+    "tailwindcss": "^4.3.0",
+    "vite": "^6.0.0"
+  }
+}

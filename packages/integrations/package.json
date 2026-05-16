@@ -1,0 +1,13 @@
+{
+  "name": "@sr/integrations",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Integration channels per spec §5.9: pure formatters for Slack, webhook, email, GitHub, Jira, PagerDuty, OpsGenie. Each adapter accepts a normalised Notification and produces a platform-specific outbound payload. Dispatchers wire formatters to actual HTTP transports.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./dispatcher": "./src/dispatcher.ts"
+  }
+}

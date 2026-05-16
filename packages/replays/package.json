@@ -1,0 +1,12 @@
+{
+  "name": "@sr/replays",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Session replay per spec §5.4: replay metadata, segmented event-stream storage, querying by user/url/error, segment ordering and stitching for playback.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts"
+  }
+}

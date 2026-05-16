@@ -1,0 +1,13 @@
+{
+  "name": "@sr/releases",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Release tracking per spec §5.5: versions, projects, deploys (environment + datetime), commits, files for source-map artifacts.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts",
+    "./semver": "./src/semver.ts"
+  }
+}

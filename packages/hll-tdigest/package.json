@@ -1,0 +1,14 @@
+{
+  "name": "@sr/hll-tdigest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Approximate data structures: HyperLogLog++, T-Digest, Count-Min Sketch, Bloom filter. Pure TypeScript over Bun.hash.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./hll": "./src/hll.ts",
+    "./tdigest": "./src/tdigest.ts",
+    "./cms": "./src/cms.ts",
+    "./bloom": "./src/bloom.ts"
+  }
+}

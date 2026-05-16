@@ -1,0 +1,13 @@
+{
+  "name": "@sr/profiling",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Profiling per spec §5.3: stack-sample profile ingest, frame interning, per-thread sample storage, flamegraph aggregation with self/total time, hottest-function analysis.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts",
+    "./flamegraph": "./src/flamegraph.ts"
+  }
+}

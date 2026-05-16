@@ -1,0 +1,13 @@
+{
+  "name": "@sr/custom-metrics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "User-emitted custom metrics per spec §5.11: counters, gauges, distributions, sets. Time-bucketed aggregation; merge across buckets for time-series queries.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts",
+    "./aggregates": "./src/aggregates.ts"
+  }
+}

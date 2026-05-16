@@ -1,0 +1,14 @@
+{
+  "name": "@sr/pii",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PII scrubbing per spec §3.1. Pattern library + Luhn-validated CC + per-project custom regexes. Walks JSON values and redacts matched substrings with [Filtered].",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./patterns": "./src/patterns.ts",
+    "./luhn": "./src/luhn.ts",
+    "./scrubber": "./src/scrubber.ts"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@sr/observability",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-observability per spec §9: per-subsystem HealthCheck registry with aggregated status, periodic heartbeat emitter, in-process system-metrics collector (event-loop lag, RSS, heap, CPU).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./health": "./src/health.ts",
+    "./heartbeat": "./src/heartbeat.ts",
+    "./system-metrics": "./src/system-metrics.ts"
+  },
+  "dependencies": {
+    "@sr/metrics": "workspace:*"
+  }
+}

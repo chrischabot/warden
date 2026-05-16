@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build artefacts
+dist/
+build/
+target/
+.build/
+.swiftpm/
+Package.resolved
+Cargo.lock.bak
+*.tsbuildinfo
+*.wasm.map
+
+# Runtime data — the columnar store, queue segments, WAL all live here
+data/
+wal/
+queue-segments/
+metadata-shards/
+
+# Logs
+*.log
+logs/
+
+# Editor / OS noise
+.DS_Store
+.vscode/
+.idea/
+
+# Maestro workspace
+.maestro/
+
+# Test / coverage output
+coverage/
+.nyc_output/
+
+# Sandbox-only build directory (kept off the filestore sync path)
+/tmp/sr-build/

@@ -1,0 +1,39 @@
+{
+  "name": "@sr/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end suite: drives the full ingest → group → store pipeline with 20 real-world use cases, 10 envelope item types, and a 20k-event burst that measures throughput, memory, event-loop lag, and accuracy.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "load": "bun src/load.ts"
+  },
+  "dependencies": {
+    "@sr/admin": "workspace:*",
+    "@sr/alerts": "workspace:*",
+    "@sr/app-relay": "workspace:*",
+    "@sr/auth": "workspace:*",
+    "@sr/crons": "workspace:*",
+    "@sr/custom-metrics": "workspace:*",
+    "@sr/grouping": "workspace:*",
+    "@sr/integrations": "workspace:*",
+    "@sr/issues": "workspace:*",
+    "@sr/logs": "workspace:*",
+    "@sr/observability": "workspace:*",
+    "@sr/otlp": "workspace:*",
+    "@sr/outcomes": "workspace:*",
+    "@sr/performance": "workspace:*",
+    "@sr/pii": "workspace:*",
+    "@sr/profiling": "workspace:*",
+    "@sr/proto": "workspace:*",
+    "@sr/rate-limit": "workspace:*",
+    "@sr/releases": "workspace:*",
+    "@sr/replays": "workspace:*",
+    "@sr/sampling": "workspace:*",
+    "@sr/sdk-javascript": "workspace:*",
+    "@sr/seer": "workspace:*",
+    "@sr/uptime": "workspace:*"
+  }
+}

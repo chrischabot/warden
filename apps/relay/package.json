@@ -1,0 +1,23 @@
+{
+  "name": "@sr/app-relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Edge HTTP ingestion. Receives Sentry-protocol envelopes, parses the stream, rate-limits, scrubs PII, dynamic-samples, enqueues items, records outcomes. Per spec §3.1.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./handler": "./src/handler.ts"
+  },
+  "scripts": {
+    "start": "bun src/index.ts"
+  },
+  "dependencies": {
+    "@sr/proto": "workspace:*",
+    "@sr/queue-core": "workspace:*",
+    "@sr/topology": "workspace:*",
+    "@sr/rate-limit": "workspace:*",
+    "@sr/pii": "workspace:*",
+    "@sr/outcomes": "workspace:*",
+    "@sr/sampling": "workspace:*"
+  }
+}

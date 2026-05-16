@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "apps/*/src/**/*.ts",
+    "apps/*/src/**/*.tsx",
+    "apps/*/test/**/*.ts",
+    "apps/*/test/**/*.tsx",
+    "apps/*/vite.config.ts",
+    "sdks/javascript/src/**/*.ts",
+    "sdks/javascript/test/**/*.ts",
+    "e2e/src/**/*.ts",
+    "e2e/test/**/*.ts",
+    "types/**/*.d.ts"
+  ],
+  "exclude": ["node_modules", "**/dist", "**/build", ".maestro"]
+}

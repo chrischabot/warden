@@ -1,0 +1,10 @@
+{
+  "name": "@sr/topology",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dynamic process-topology sizing. Single source of truth for shard/worker counts derived from logical core count per §12.2 of the spec.",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

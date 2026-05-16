@@ -1,0 +1,13 @@
+{
+  "name": "@sr/symbolicator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Symbolication: JS source-map (v3) decoder and resolver in pure TypeScript. Native DWARF/PDB/Breakpad via Rust FFI lands in a later wave.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./vlq": "./src/vlq.ts",
+    "./source-map": "./src/source-map.ts"
+  }
+}

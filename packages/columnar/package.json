@@ -1,0 +1,26 @@
+{
+  "name": "@sr/columnar",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Columnar event-store kernel. Column encodings, segment format, MemTable, WAL, compaction, query planner.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./encodings": "./src/encodings/index.ts",
+    "./bit-buffer": "./src/bit-buffer.ts",
+    "./types": "./src/types.ts",
+    "./segment": "./src/segment/index.ts",
+    "./wal": "./src/wal/index.ts",
+    "./memtable": "./src/memtable/index.ts",
+    "./query": "./src/query/index.ts",
+    "./compaction": "./src/compaction/index.ts",
+    "./cache": "./src/cache/index.ts",
+    "./metrics": "./src/metrics.ts"
+  },
+  "dependencies": {
+    "@sr/metrics": "workspace:*"
+  },
+  "devDependencies": {
+    "@sr/hll-tdigest": "workspace:*"
+  }
+}

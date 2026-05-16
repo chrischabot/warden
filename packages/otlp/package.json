@@ -1,0 +1,18 @@
+{
+  "name": "@sr/otlp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenTelemetry Protocol (OTLP) interop per spec §5.14 / §6: pure-TypeScript OTLP/JSON decoder for traces + logs, conversion to native Sentry transactions/spans and log events. Protobuf wire-format lands in a follow-on commit.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./decode-json": "./src/decode-json.ts",
+    "./convert-traces": "./src/convert-traces.ts",
+    "./convert-logs": "./src/convert-logs.ts"
+  },
+  "dependencies": {
+    "@sr/logs": "workspace:*",
+    "@sr/performance": "workspace:*"
+  }
+}

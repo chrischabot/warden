@@ -1,0 +1,13 @@
+{
+  "name": "@sr/admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Admin product surface per spec §5.13: organisations, teams, projects, users, memberships, API tokens, and role-based permission checks.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts",
+    "./permissions": "./src/permissions.ts"
+  }
+}

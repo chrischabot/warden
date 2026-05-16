@@ -1,0 +1,16 @@
+{
+  "name": "@sr/issues",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Issue (group) state machine per spec §5.1: status, levels, regression detection, assignment, archiving. Ingest-time bridge from @sr/grouping output to group records.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts",
+    "./short-id": "./src/short-id.ts"
+  },
+  "dependencies": {
+    "@sr/grouping": "workspace:*"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@sr/crons",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cron monitor product surface per spec §5.6: schedule parser (5-field + @descriptors), check-in lifecycle (in_progress / ok / error), missed/timeout detection, monitor state.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./schedule": "./src/schedule.ts",
+    "./store": "./src/store.ts"
+  }
+}

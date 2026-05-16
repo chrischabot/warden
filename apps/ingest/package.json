@@ -1,0 +1,20 @@
+{
+  "name": "@sr/app-ingest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ingest workers. Consume queue records, parse + fingerprint events, route to the save stage. Per spec §3.3.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./worker": "./src/worker.ts"
+  },
+  "scripts": {
+    "start": "bun src/index.ts"
+  },
+  "dependencies": {
+    "@sr/proto": "workspace:*",
+    "@sr/queue-core": "workspace:*",
+    "@sr/grouping": "workspace:*",
+    "@sr/topology": "workspace:*"
+  }
+}

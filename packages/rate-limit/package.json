@@ -1,0 +1,12 @@
+{
+  "name": "@sr/rate-limit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Leaky-bucket rate limiter per (project_id, data_category) per spec §3.1. In-process state; backed by Redis in production (wired by orchestrator).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bucket": "./src/bucket.ts",
+    "./limiter": "./src/limiter.ts"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@sr/uptime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Uptime monitoring per spec §5.7: HTTP checks at configured intervals, status (up/down/degraded), incident tracking, uptime SLO over rolling windows.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts",
+    "./prober": "./src/prober.ts"
+  }
+}

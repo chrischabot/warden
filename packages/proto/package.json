@@ -1,0 +1,17 @@
+{
+  "name": "@sr/proto",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Envelope codec, DSN parser, sentry-trace + baggage + W3C traceparent codecs, and Item type definitions. Pure TypeScript over Web APIs, no runtime deps.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dsn": "./src/dsn.ts",
+    "./envelope": "./src/envelope.ts",
+    "./items": "./src/items.ts",
+    "./sentry-trace": "./src/sentry-trace.ts",
+    "./baggage": "./src/baggage.ts",
+    "./traceparent": "./src/traceparent.ts",
+    "./trace-context": "./src/trace-context.ts"
+  }
+}

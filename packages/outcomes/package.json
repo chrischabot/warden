@@ -1,0 +1,12 @@
+{
+  "name": "@sr/outcomes",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Outcome recording per spec §3.1. Buffered and aggregating recorders for accepted/rate_limited/invalid/filtered/over_quota/abuse/client_discard outcomes.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./recorder": "./src/recorder.ts"
+  }
+}

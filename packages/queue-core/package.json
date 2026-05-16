@@ -1,0 +1,12 @@
+{
+  "name": "@sr/queue-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Custom queue primitives: segmented log, offset tracking. Backs the Kafka-equivalent at packages/queue and apps/queue.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./log": "./src/log.ts"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@sr/sdk-javascript",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "JavaScript/TypeScript SDK for sentry-replica. Captures exceptions and messages, builds envelopes, transports them to a relay endpoint.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./transport": "./src/transport.ts",
+    "./event": "./src/event.ts",
+    "./stack-parser": "./src/stack-parser.ts",
+    "./types": "./src/types.ts"
+  },
+  "dependencies": {
+    "@sr/proto": "workspace:*"
+  }
+}

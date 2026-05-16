@@ -1,0 +1,13 @@
+{
+  "name": "@sr/alerts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Alerts per spec §5.8: issue alerts (per-event rule evaluation) and metric alerts (time-windowed aggregate thresholds with critical/warning thresholds and resolve-on-fall-through).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./issue-alerts": "./src/issue-alerts.ts",
+    "./metric-alerts": "./src/metric-alerts.ts"
+  }
+}
