@@ -12,15 +12,17 @@ Cargo.lock.bak
 *.tsbuildinfo
 *.wasm.map
 
-# Runtime data — the columnar store, queue segments, WAL all live here
-data/
-wal/
-queue-segments/
-metadata-shards/
+# Runtime data — the columnar store, queue segments, WAL all live here.
+# Anchored to repo root so we don't accidentally match nested source dirs
+# like packages/columnar/src/wal/ or packages/logs/.
+/data/
+/wal/
+/queue-segments/
+/metadata-shards/
 
 # Logs
 *.log
-logs/
+/logs/
 
 # Editor / OS noise
 .DS_Store

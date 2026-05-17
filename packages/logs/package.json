@@ -1,0 +1,12 @@
+{
+  "name": "@sr/logs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Logs product surface per spec §5.10: structured log events (level, message, attributes, trace correlation), query by project/level/time, tailing.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts"
+  }
+}
