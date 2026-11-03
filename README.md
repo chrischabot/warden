@@ -120,6 +120,10 @@ The 18 Playwright journeys for the web UI run against the dev server, as describ
 
 [`docs/`](docs/README.md) holds the architecture overview, operations guides, API and SDK references, and notes on [the columnar store](docs/internals/columnar-store.md), [the queue](docs/internals/queue.md) and the other internals. [`specs/SPEC.md`](specs/SPEC.md) is the original specification, with [`specs/SPEC-CORRECTIONS.md`](specs/SPEC-CORRECTIONS.md) alongside it, and [`plan.md`](plan.md) is the construction log. These documents describe the whole intended system, so treat the relay and ingest start commands in the getting-started and deployment guides as the intended design until an orchestrator exists.
 
+## Project background
+
+- [Warden project overview](https://chabot.dev/projects/#warden) on Chris Chabot’s site.
+
 ## License and credits
 
 Warden is released under the [MIT License](LICENSE), copyright 2026 Chris Chabot, who wrote the specification and directed the build. Maestro, iGent AI's autonomous coding agent, wrote the implementation.
