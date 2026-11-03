@@ -1,97 +1,20 @@
 # Warden
 
-A faithful reimplementation of Sentry using Bun.
+Warden is a from-scratch reimplementation of Sentry's backend in TypeScript on Bun. An error tracker at this level normally leans on a message broker to absorb incoming events and an analytical database to answer questions about them, so running one means running those systems as well. Warden's design replaces both with code in this repository, a durable segmented log and a custom columnar event store on local disk, and adds a relay that speaks Sentry's envelope protocol, a fingerprinting engine that groups errors into issues, and SDKs for five languages.
 
-Warden ingests, stores, groups, queries, alerts on, and visualises errors, traces, profiles, replays, crons, uptime checks, releases, logs, and metrics. It ships five first-party SDKs (TypeScript, Rust, Go, Python, Swift), accepts OpenTelemetry traces and logs over OTLP/JSON, and runs entirely on Bun with no external database, queue, or message broker.
+Chris Chabot specified it for the five services behind iGent AI's agent platform, and Maestro, iGent's autonomous coding agent, built it under three constraints: Bun as the runtime, 10,000 events per second sustained, and no external project handling any architectural piece, which rules out Kafka, ClickHouse and DuckDB among others. The repository is most useful today to engineers who want to see how an observability backend fits together, or who want a starting point for a relay, a durable log or a columnar store on Bun.
 
-Run it on your laptop, a single VM, or a 64-core box. The same binary scales from one to the other without configuration.
+It isn't something you can deploy yet. The components exist as libraries with their own tests, but the process that would connect them hasn't been written, so the relay and ingest entry points stop at startup asking for the queue and storage sink it should supply, and the web UI runs on mock data. An in-process harness is how you see the pieces work together, and [Run the pipeline](#run-the-pipeline) shows how to use it.
 
----
+## How it works
 
-## What you get
+An SDK captures an error, wraps it in a Sentry envelope and posts it to the relay. For each item in the envelope the relay applies per-project rate limits, samples deterministically on the trace ID and scrubs personal data and secrets from JSON payloads, then appends what survives to a queue topic named `<project_id>:<item_type>`. An ingest worker reads those records, fingerprints each event from its in-app stack frames so that repeats of one failure collapse into a single issue, and hands the result to a storage sink.
 
-- **Error tracking** — stacktraces, source-mapped frames, fingerprinting, grouping, regression detection.
-- **Performance monitoring** — distributed traces, spans, p50/p75/p95/p99, slow-query and N+1 detection.
-- **Profiling** — sampled CPU profiles per transaction, flame graphs in the UI.
-- **Session replay** — DOM replay for the JS SDK, with PII scrubbing.
-- **Crons & uptime** — scheduled-job heartbeats and HTTP/TCP probes with alerting.
-- **Releases & source maps** — release health, regressions, artifact upload, symbolicated frames.
-- **Logs & custom metrics** — structured logs and counter/gauge/distribution metrics with HLL + t-digest aggregation.
-- **OpenTelemetry interop** — accepts OTLP/JSON traces and logs on the standard endpoints.
-- **Alerts** — metric alerts, issue alerts, anomaly detection, notification fan-out.
-- **Multi-tenancy** — organisations, projects, teams, roles, DSN + token auth.
-- **Web UI** — 14 routes covering dashboard, issues, performance, traces, profiles, discover, dashboards, alerts, crons, uptime, releases, source maps, SDK setup wizard, settings.
-
----
-
-## How it's built
-
-Warden is a Bun-native monorepo. Every runtime process is `bun src/index.ts` — there is no transpile step, no bundler in the hot path, and no `.d.ts` emission. TypeScript is type-checked with `tsgo` (the TypeScript 7 native preview, ~10× faster than `tsc`) purely as a CI gate.
-
-The interesting bits:
-
-### A custom columnar event store
-
-Events are written into segment files with per-column encodings chosen at write time: RLE for low-cardinality strings, dictionary for repeated identifiers, delta-for-frame-of-reference for monotonically increasing timestamps, raw for everything else. Each segment carries a zone-map (min/max + null-count per column per block) so query planners can prune most segments without reading them. A bit-packed buffer layer underlies the encodings. Writes go through a MemTable backed by a write-ahead log; a background compaction worker merges MemTable flushes into sealed segments. Queries are planned against the zone-maps first, then executed column-by-column with predicate pushdown. HyperLogLog and t-digest sketches give exact-enough cardinality and percentile answers without scanning raw rows.
-
-### A custom queue
-
-A segmented append-only log with group-commit fsync, CRC-checked records, and crash-recovery on open. Segment files roll on size or age. Consumers read by byte offset; offsets are stable across process restarts. No Kafka, no Redis, no NATS — just files and `fsync`.
-
-### A custom relay
-
-The relay accepts the Sentry envelope protocol on `POST /api/{project_id}/envelope/`. It parses streaming envelopes (so a 100 MiB minidump never lands in memory whole), authenticates the DSN, rate-limits per project + envelope item type, scrubs PII, applies dynamic sampling, enqueues accepted items, and records outcomes for everything dropped. Multiple relay processes share the same port via `SO_REUSEPORT` and let the kernel load-balance.
-
-### Dynamic topology
-
-Process counts are derived from the host's logical core count at boot — there is no `procs: 8` in any config file. A 4-core laptop runs ~24 CPU-bound processes; a 64-core box runs ~171. The single source of truth lives in `packages/topology`, which encodes formulas like `columnar_shards = cores`, `relay_procs = max(2, cores / 8)`, `ingest_workers = max(2, cores / 2)`, and so on. Approximate counts:
-
-| Cores | Total processes |
-|------:|----------------:|
-| 4     | ~24             |
-| 8     | ~33             |
-| 16    | ~51             |
-| 32    | ~91             |
-| 64    | ~171            |
-
-### Multi-core scaling
-
-Warden does not rely on Bun worker threads for CPU work — it forks OS processes. The supervisor spawns N of each process kind sized by topology, and each kind binds the work it does:
-
-- **Relay processes** share a TCP port via `reusePort: true` and are stateless behind it.
-- **Ingest workers** consume from queue shards; queue-shard count equals worker count, so each shard has exactly one consumer.
-- **Columnar shards** partition events by `(project_id, hash)`; each shard owns its MemTable, WAL, and sealed segments on disk.
-- **Query workers** scatter-gather across columnar shards.
-- **Alert evaluators, cron leader, uptime probers, Seer (anomaly detection) workers, WS fan-out, API procs** each scale independently from the same topology table.
-
-The metadata store is `bun:sqlite` with WAL mode, sharded by `(org_id, project_id)` across `metadataShards` files — JavaScriptCore is single-threaded per isolate, but SQLite's file-level concurrency plus shard fan-out gives linear metadata throughput up to core count.
-
-### Bun-native everything
-
-- `Bun.serve` with `reusePort` for HTTP.
-- `Bun.file` for zero-copy segment reads.
-- `bun:sqlite` for metadata, with prepared-statement caches per shard.
-- `Bun.password` and `Bun.CryptoHasher` for auth and content hashing.
-- Bun's native `fetch` for outbound webhooks.
-- No `node_modules` C++ addons. No `napi-rs`. No native deps to rebuild on upgrade.
-
-### The stack
-
-- **Bun** 1.3.14 — runtime.
-- **TypeScript 7 beta** (`@typescript/native-preview`, the `tsgo` binary) — type-checking only; Bun runs `.ts` directly.
-- **Effect v4 beta** — structured concurrency and error handling for hot paths.
-- **Biome v2** — lint + format.
-- **React 19.2** + **Tailwind v4.3** (Oxide engine) + **React Router 7** + **Vite 6** — web UI.
-
-### Measured throughput
-
-On a 2 vCPU / 8 GiB sandbox: **14,268 events/s sustained** end-to-end over a 20,000-event burst, 100% accuracy across errors / transactions / logs, event-loop lag p95 = 26.78 ms / p99 = 37.89 ms, peak RSS delta = 92 MiB. The design ceiling at 32 cores is 10k events/s sustained and ~25k peak.
-
----
+Each stage takes its neighbours as injected dependencies, which is why the same relay handler can run inside a test or behind `Bun.serve`. The harness injects an in-memory queue and uses its own `drain()` step in place of the ingest worker to route items into in-memory product stores. The durable segmented log and the columnar store are implemented and tested on their own, and connecting them to this path, then putting a read API in front of the data, is the work that remains.
 
 ## Install
 
-Requires Bun 1.3.14 or newer.
+Warden needs Bun 1.3.14 or newer on macOS or Linux, or on Windows through WSL2.
 
 ```bash
 git clone https://github.com/chrischabot/warden.git
@@ -99,146 +22,106 @@ cd warden
 bun install --frozen-lockfile
 ```
 
-Validate the install:
+## Run the pipeline
+
+The harness in [`e2e/`](e2e/README.md) runs the real JavaScript SDK and relay handler in a single process, with no sockets or disk involved.
 
 ```bash
-bun run validate            # biome + tsgo + bun test (1,036 tests)
+bun test e2e/        # 20 scenarios, 10 envelope item types and a load test
+bun e2e/src/load.ts  # a 20,000-event burst, reporting throughput, memory, event-loop lag and accuracy
 ```
 
----
+You can also drive it directly. Save this as `demo.ts` in the repository root and run `bun demo.ts`:
 
-## Run
+```ts
+import { Pipeline } from './e2e/src/pipeline';
 
-Each app is `bun src/index.ts`. In development you can run them directly:
+const pipeline = new Pipeline({ enablePiiScrub: true });
+const client = pipeline.sdkClient('1', { release: 'demo@1.0.0' });
+
+for (let i = 0; i < 3; i++) {
+  client.captureException(new TypeError('Could not notify alice@example.com'));
+}
+await client.flush();
+pipeline.drain();
+
+for (const group of pipeline.issues.all()) {
+  console.log(group.message, group.status, group.timesSeen);
+}
+// Could not notify [Filtered] unresolved 3
+```
+
+The three captures become one issue, and the relay removed the address before the payload reached the queue.
+
+The project's [plan](plan.md#11-performance-optimization-landing-2026-05-16) records a median of about 20,000 events per second for the load test on a 2 vCPU sandbox, up from about 7,500 before an optimisation pass. That run covers the SDK, relay handler and in-memory stores with rate limiting, sampling and scrubbing switched off, so it tells you how fast that code path is rather than what a deployment would sustain.
+
+To go beyond the harness you have to write the missing orchestrator: give `startRelay` in `apps/relay` a `RelayQueue` backed by `SegmentedLog`, and give `runWorker` in `apps/ingest` a source over that log and an `IngestSink` that writes to storage.
+
+## Web UI
 
 ```bash
-# HTTP relay (envelope ingestion) — default port 9000
-bun apps/relay/src/index.ts
-
-# Ingest workers (consume queue, group, save)
-bun apps/ingest/src/index.ts
-
-# Web UI (Vite dev server)
-cd apps/web && bun run dev
+cd apps/web
+bun run dev   # http://localhost:8080
 ```
 
-In production a single supervisor (systemd, supervisord, or your orchestrator of choice) spawns N of each process per the topology computed at boot. The relay processes share port 9000 via `SO_REUSEPORT`; ingest workers pin to queue shards by index.
+The React app is a clickable prototype of the intended product, with 18 routes covering issues, traces, performance, profiles, Discover, dashboards, alerts, crons, uptime, releases, source maps and settings. Everything it shows comes from a mock data layer, so events sent to a relay won't appear there, and bulk actions on issues confirm with a toast without changing anything.
 
-The data directory holds the queue segments, columnar segments, WAL files, and SQLite metadata shards. Point it at fast local storage (NVMe). No external services are required.
+## SDKs
 
----
+| Language | Path | Name in its manifest |
+| --- | --- | --- |
+| TypeScript and JavaScript | `sdks/javascript` | `@sr/sdk-javascript` |
+| Python | `sdks/python` | `sentry-replica`, imported as `sentry_replica` |
+| Rust | `sdks/rust` | `sentry-replica-core` |
+| Go | `sdks/go` | `github.com/igentai/sentry-replica/sdks/go` |
+| Swift | `sdks/swift` | `SentryReplica` |
 
-## Use it
+Each SDK parses DSNs of the form `https://<public_key>@<host>/<project_id>`, builds Sentry envelopes and offers capture and scope calls modelled on Sentry's. They still carry the project's working name, and these manifest names are the ones to use, whatever some of the guides call them. You use them from a checkout of this repository, and the [SDK references](docs/sdks/README.md) cover each language.
 
-### From an application — SDKs
+## Under the hood
 
-Warden ships five SDKs in `sdks/`:
+**Relay** (`apps/relay`). `createRelay` returns a fetch handler for `POST /api/{project_id}/envelope/` that responds with `{ id, accepted, rate_limited, filtered }`. It reads the whole body into one buffer and parses it synchronously, because profiling showed that the earlier streaming parser accumulated the body anyway while taking about a quarter of the relay's time. `startRelay` serves the handler with a 100 MiB body limit and `reusePort`, so several relay processes can share a port. DSN keys aren't checked at this layer yet. The [envelope reference](docs/api/envelope.md) covers the wire format.
+
+**Queue** (`packages/queue-core`). `SegmentedLog` is an append-only log across rolling segment files. Appends are batched and written together with `writev` and `fdatasync`, by default every 10 ms or 1 MiB, and an append's promise resolves once its batch is on disk. Segments roll at 256 MiB or after an hour. Reads validate a CRC32 on every record, consumers address records by logical offset, and reopening a log truncates any partial record a crash left at the end of the active segment.
+
+**Columnar store** (`packages/columnar`). Columns are divided into pages, and each page is encoded raw, as a string dictionary with bit-packed IDs, as run lengths for `int32` runs, or as delta plus frame-of-reference for near-monotone `int32` columns. Numeric pages carry min/max zone maps, which lets `query()` skip pages without decoding them, and the rest of the query runs as generator operators that pass column batches from scan through filter, project and limit. The package also holds the MemTable, a CRC-checked write-ahead log and `compactSegments`, which merges sealed segments and re-encodes them.
+
+**Grouping** (`packages/grouping`). `fingerprintEvent` prefers an explicit fingerprint, then the module and function of up to five in-app frames, then the exception type and value, then the message. File names and line numbers stay out of the hash, so an issue keeps its identity when a rebuild moves code around.
+
+**Product logic** (`packages/`). The issue state machine with regressions and snoozes, N+1 and slow-query detection, alert evaluators, cron and uptime state, release tracking, and replay, profile, log and custom metric stores all live here as libraries that hold their state in memory. The same directory holds the OTLP/JSON converters, JavaScript source map symbolication, the DSN and API token authenticators and the SQLite shard router, which no HTTP route calls yet.
+
+**Topology** (`packages/topology`). `computeTopology({ cores })` derives the count of every process kind from the host's core count, from about 24 processes on 4 cores to about 171 on 64. It is the sizing plan for a deployment, and nothing spawns those processes yet.
+
+## Development
+
+The workspace has three apps in `apps/`, 29 internal packages under the `@sr/` scope in `packages/`, five SDKs in `sdks/` and the harness in `e2e/`. Bun runs the TypeScript directly, `tsgo` from the TypeScript 7 native preview does the type-checking, and Biome handles lint and formatting. The web UI uses React 19.2, Tailwind 4.3, React Router 7 and Vite 6.
 
 ```bash
-sdks/javascript    # @warden/sdk — works in Node, Bun, browsers
-sdks/python        # warden-sdk — sync + asyncio
-sdks/rust          # warden — Tokio-based
-sdks/go            # warden-go — context-aware
-sdks/swift         # Warden — iOS, macOS, Linux
+bun run lint       # biome check .
+bun run typecheck  # tsgo --noEmit
+bun run test       # bun test --parallel --isolate
+bun run validate   # all three, stopping at the first failure
 ```
 
-All five speak the Sentry envelope protocol, so any existing Sentry-compatible tooling works against Warden by changing the DSN host. A DSN looks like:
+CI runs the same checks with the tests split across four shards. On the current `main`, the Biome and `tsgo` jobs and one test shard fail, so expect `bun run validate` to stop at lint until those are fixed.
 
-```
-https://<public_key>@warden.example.com/<project_id>
-```
+The other SDKs have their own test commands:
 
-Initialise once at process start, then call `captureException`, `captureMessage`, `startTransaction`, `addBreadcrumb`, etc. — the API mirrors what you already know.
-
-### From the web UI
-
-Open the web app (Vite dev server at `http://localhost:5173`, or your built bundle behind any static host) and sign in. Routes:
-
-```
-/                         dashboard
-/issues                   issue list
-/issues/:id               issue detail (events, stack, breadcrumbs)
-/performance              transaction overview
-/traces                   trace list
-/traces/:id               trace waterfall
-/profiles                 sampled profiles + flame graphs
-/discover                 ad-hoc query builder
-/dashboards               custom dashboards
-/alerts                   metric + issue alerts
-/crons                    cron monitors
-/uptime                   uptime monitors
-/releases                 release health
-/settings                 org/project/team/member settings
+```bash
+(cd sdks/python && pip install -e ".[dev]" && pytest)
+(cd sdks/rust && cargo test)
+(cd sdks/go && go test ./...)
+(cd sdks/swift && swift test)
 ```
 
-### From OpenTelemetry
-
-Point your OTLP/JSON exporter at the relay. Traces and logs are accepted on the standard OTLP HTTP paths and converted into Warden's native event shape on ingest. Protobuf wire is not yet implemented — use the JSON exporter.
-
-### From the HTTP API
-
-The same relay process exposes the Sentry-compatible envelope endpoint:
-
-```
-POST /api/{project_id}/envelope/
-Content-Type: application/x-sentry-envelope
-X-Sentry-Auth: Sentry sentry_key=<public_key>, sentry_version=7
-```
-
-Body is a newline-delimited envelope: one JSON header, then alternating item-header / item-payload pairs. The relay streams the body, so envelope items up to 100 MiB (minidumps, large attachments) are handled without buffering.
-
-Authentication uses either a DSN public key (for ingest) or a bearer token (for read APIs and admin endpoints).
-
----
-
-## Layout
-
-```
-warden/
-├── docs/                         # user + developer docs (see Documentation section)
-├── specs/SPEC.md                 # full specification
-├── packages/                     # 29 internal packages
-│   ├── topology/  metrics/  proto/
-│   ├── columnar/  hll-tdigest/  queue-core/
-│   ├── grouping/  symbolicator/  pii/
-│   ├── rate-limit/  outcomes/  sampling/
-│   ├── issues/  releases/  performance/
-│   ├── alerts/  crons/  uptime/
-│   ├── replays/  profiling/
-│   ├── logs/  custom-metrics/  integrations/
-│   ├── admin/  seer/  otlp/
-│   └── auth/  sqlite-shard/  observability/
-├── apps/
-│   ├── relay/    # HTTP ingest
-│   ├── ingest/   # queue consumers
-│   └── web/      # React UI
-├── sdks/
-│   └── javascript/  rust/  go/  python/  swift/
-└── e2e/                          # end-to-end + load tests
-```
-
----
+The 18 Playwright journeys for the web UI run against the dev server, as described in [`apps/web/test-e2e`](apps/web/test-e2e/README.md).
 
 ## Documentation
 
-Full user and developer documentation lives in [`docs/`](./docs/README.md). Top-level sections:
+[`docs/`](docs/README.md) holds the architecture overview, operations guides, API and SDK references, and notes on [the columnar store](docs/internals/columnar-store.md), [the queue](docs/internals/queue.md) and the other internals. [`specs/SPEC.md`](specs/SPEC.md) is the original specification, with [`specs/SPEC-CORRECTIONS.md`](specs/SPEC-CORRECTIONS.md) alongside it, and [`plan.md`](plan.md) is the construction log. These documents describe the whole intended system, so treat the relay and ingest start commands in the getting-started and deployment guides as the intended design until an orchestrator exists.
 
-- **[Getting started](./docs/getting-started.md)** — install Bun, run the relay, send your first event.
-- **[Platform overview](./docs/platform-overview.md)** — what Warden captures and how it's different.
-- **[Concepts](./docs/concepts.md)** — DSN, envelope, event, scope, hub, issue, group, fingerprint, release.
-- **[Architecture](./docs/architecture.md)** — process model, data flow, multi-core scaling.
-- **[Operations](./docs/operations/)** — [installation](./docs/operations/installation.md), [deployment](./docs/operations/deployment.md), [scaling and topology](./docs/operations/scaling-and-topology.md), [storage and data](./docs/operations/storage-and-data.md), [observability](./docs/operations/observability.md).
-- **[HTTP API reference](./docs/api/README.md)** — [envelope ingest](./docs/api/envelope.md), [OTLP](./docs/api/otlp.md), [rate limits](./docs/api/rate-limits.md), [outcomes](./docs/api/outcomes.md).
-- **[SDKs](./docs/sdks/README.md)** — full reference per language: [JavaScript](./docs/sdks/javascript.md), [Python](./docs/sdks/python.md), [Rust](./docs/sdks/rust.md), [Go](./docs/sdks/go.md), [Swift](./docs/sdks/swift.md).
-- **[Reporting guide](./docs/reporting-guide.md)** — how to instrument an application well.
-- **[Web dashboard](./docs/web-dashboard.md)** — full guide to the UI, every page, settings, shortcuts.
-- **[Internals](./docs/internals/README.md)** — [columnar store](./docs/internals/columnar-store.md), [queue](./docs/internals/queue.md), [grouping](./docs/internals/grouping.md), [sampling](./docs/internals/sampling.md), [PII scrubbing](./docs/internals/pii-scrubbing.md), [rate limiting](./docs/internals/rate-limiting.md), [auth](./docs/internals/auth.md), [package reference](./docs/internals/packages.md).
-- **[Contributing](./docs/contributing.md)** — dev workflow, conventions, CI matrix.
+## License and credits
 
-The source-of-truth specification lives in [`specs/SPEC.md`](./specs/SPEC.md) with corrections in [`specs/SPEC-CORRECTIONS.md`](./specs/SPEC-CORRECTIONS.md).
+Warden is released under the [MIT License](LICENSE), copyright 2026 Chris Chabot, who wrote the specification and directed the build. Maestro, iGent AI's autonomous coding agent, wrote the implementation.
 
----
-
-## License
-
-MIT. See [LICENSE](./LICENSE).
+Warden implements Sentry's envelope protocol and follows its product model, but it is an independent project and isn't affiliated with Sentry. The specification also credits C-Store, X100, ORC, Pinot, ClickHouse MergeTree, Druid and QuestDB for the storage ideas it borrows.
